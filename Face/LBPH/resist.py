@@ -15,10 +15,26 @@ recognizer_model = cv2.face.LBPHFaceRecognizer_create()
 protoPath = os.path.join("model", "deploy.prototxt")
 modelPath = os.path.join("model","res10_300x300_ssd_iter_140000.caffemodel")
 detector = cv2.dnn.readNetFromCaffe(protoPath, modelPath)
-recognizer_model.read(core)
+# recognizer_model.read(core)
+
+def cut_faces(image, faces_coord):                                          
+    faces = []
+
+    for (x, y, w, h) in faces_coord:                                        #Trims parts of the face
+        print("{} {} {} {}".format(x, y, w, h))
+        w_rm = int(0.2 * w / 2)
+        faces.append(image[y : y + h, x + w_rm :  x + w - w_rm])
+        
+    return faces
+
+def createCLAHE(frame):
+    frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(20,20))
+    res = clahe.apply(frame)
+    return res
 
 def adjust_brightness(frame):
-    avg = frame.mean(axis=0).mean(axis=0)
+    avg = frame.mean(axis=0).mean(axis=0)[0]
     if avg <100:
         frame = adjust_gamma(frame,avg/60)
         return frame
@@ -37,21 +53,31 @@ def draw_text(img, text, x, y):
     cv2.putText(img, text, (x, y), cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 255, 0), 2)
 
 def normalize_face_data(frame,w,h):
-    frames = []
-    boxes = []
-    imageBlob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0, (300, 300),(104.0, 177.0, 123.0), swapRB=False, crop=False) ## CONVERT FRAME INTO BLOB FOR DNN INPUT
-    detector.setInput(imageBlob)
-    detections = detector.forward()
-    for i in range(0, detections.shape[2]): ## ITERATE ALL DETECTED FACE
-        box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-        confidence = detections[0, 0, i, 2]
-        # print("{} {}".format(startY,endY),"{} {}".format(startX,endX))
-        if confidence > 0.5:
-            (startX, startY, endX, endY) = box.astype("int")
-            gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-            frames.append(gray[startY:endY,startX:endX])
-            boxes.append(box.astype("int")) ##!!DEFAULT EXPECTED RETURNED VALUE
-    return frames,boxes
+    try:
+        frames = []
+        boxes = []
+        imageBlob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0, (300, 300),(104.0, 177.0, 123.0), swapRB=False, crop=False) ## CONVERT FRAME INTO BLOB FOR DNN INPUT
+        detector.setInput(imageBlob)
+        detections = detector.forward()
+        for i in range(0, detections.shape[2]): ## ITERATE ALL DETECTED FACE
+            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+            confidence = detections[0, 0, i, 2]
+            # print("{} {}".format(startY,endY),"{} {}".format(startX,endX))
+            if confidence > 0.7:
+                (startX, startY, endX, endY) = box.astype("int")
+                # gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+                gray = createCLAHE(frame)
+                # histogram = cv2.equalizeHist(gray)
+                equalized = cv2.resize(gray[startY:endY,startX:endX], (400, 400), interpolation = cv2.INTER_CUBIC)
+                cv2.imshow("frame 2",equalized)
+                # cv2.imshow("frame",equalized)
+                # cv2.waitKey(0)
+                frames.append(equalized)
+                boxes.append(box.astype("int")) ##!!DEFAULT EXPECTED RETURNED VALUE
+        return frames,boxes
+    except:
+        return None,None
+
 
 def prepare_training_dataset(dataset):
     faces = []
@@ -120,6 +146,13 @@ def update_model():
     recognizer_model.read(core)
     recognizer_model.update(face,np.array(label))
     recognizer_model.write(core)
+
+try:
+    if not os.path.isfile(core):
+        create_model()
+    recognizer_model.read(core)
+except:
+    pass
 
 ##TODO : DATA NORMALIZATION
 def predict(frame):
