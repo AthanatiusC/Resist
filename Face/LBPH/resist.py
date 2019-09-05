@@ -14,6 +14,7 @@ import redis
 import imutils
 
 # r = redis.Redis("localhost")
+labels = []
 faces = []
 boxes = []
 predictions = []
@@ -74,38 +75,45 @@ def createCLAHE(frame):
     res = clahe.apply(frame)
     return res
 
-def new_save(faces,labels):
+def new_save():
     if not os.path.isfile(pickles):  # WRITE FILE IF RESIST FILE DOESN'T EXIST
         data = {"faces": faces, "labels": labels}
         file = open(pickles, "wb")
         file.write(pickle.dumps(data))
         file.close()
 
-def save_existing(newfaces,newlabels):
+def save_existing():
+    newlabels = labels
+    newfaces = faces
+    predictions.clear()
+    faces.clear()
     if os.path.isfile(pickles):
-        faces = []
-        labels = []
+        oldfaces = []
+        oldlabels = []
         file = pickle.load(open(pickles, "rb"))  # LOAD EXISTING RESIST FILE
         label = file["labels"]  # DECENTRIALIZE DICTIONARY
         face = file["faces"]
         for la,fa in zip(label,face):  # APPENDING EACH LIST
-            labels.append(la)
-            faces.append(fa)
+            oldlabels.append(la)
+            oldfaces.append(fa)
         for la,fa in zip(newlabels,newfaces):
-            labels.append(la)
-            faces.append(fa)
-        data = {"faces": faces, "labels": labels}
+            oldlabels.append(la)
+            oldfaces.append(fa)
+        data = {"faces": oldfaces, "labels": oldlabels}
         files = open(pickles, "wb")
         files.write(pickle.dumps(data))
         files.close()
         file = pickle.load(open(pickles, "rb"))
 
 def Serialize(frame,box):
-    (startX, startY, endX, endY) = box.astype("int")
-    gray = createCLAHE(frame)
-    equalized = cv2.resize(gray[startY:endY, startX:endX], (400, 400), interpolation=cv2.INTER_LANCZOS4)
-    faces.append(equalized)
-    boxes.append(box.astype("int"))
+    try:
+        (startX, startY, endX, endY) = box.astype("int")
+        gray = createCLAHE(frame)
+        equalized = cv2.resize(gray[startY:endY, startX:endX], (500, 400), interpolation=cv2.INTER_LANCZOS4)
+        faces.append(equalized)
+        boxes.append(box.astype("int"))
+    except:
+        pass
 
 def Normalize(frame):
     try:
@@ -128,8 +136,6 @@ def Normalize(frame):
         print("None")
 
 def prepare_training_dataset(dataset):
-    faces = []
-    labels = []
     dirs = os.listdir(dataset)
     for dir_name in dirs:
         if not dir_name.startswith("T"):
@@ -143,10 +149,9 @@ def prepare_training_dataset(dataset):
                 total += 1
                 sys.stdout.write(
                     "\r [ SYSTEM ] : Current id '{}' - preparing {}/{} Images".format(label, total, len(file_name)))
-                face2, boxes = Normalize(frame)
-                for face, box in zip(face2, boxes):
-                    if face2[0] is not None:
-                        faces.append(face)  # !!DEFAULT EXPECTED RETURN VALUE
+                Normalize(frame)
+                for face, box in zip(faces, boxes):
+                    if len(faces) != 0:
                         labels.append(label)  # !!DEFAULT EXPECTED RETURN VALUE
             sys.stdout.write("\n")
             sys.stdout.flush()
@@ -154,16 +159,16 @@ def prepare_training_dataset(dataset):
             os.rename(os.path.join(dataset, dir_name),
                     os.path.join(dataset, "T"+dir_name))
     if not os.path.isfile(pickles):
-        new_save(faces,labels)
+        new_save()
     if os.path.isfile(pickles):
-        save_existing(faces,labels)
+        save_existing()
 
 def predict(face,box,frame):
     (startX, startY, endX, endY) = box.astype("int")
     label, confidence = recognizer_model.predict(face)
     y = startY - 10 if startY - 10 > 10 else startY + 10 
     draw_rectangle(frame,box)
-    if confidence < 40:
+    if confidence < 30:
         draw_text(frame,str(label)+" Accu: "+str(100-int(confidence)+15),startX, y)
     data = {"label":label,"confidence":confidence,"frame":frame}
     predictions.append(data)
