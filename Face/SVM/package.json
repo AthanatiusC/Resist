@@ -1,0 +1,23 @@
+{
+  "name": "svm",
+  "version": "1.0.0",
+  "description": "[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/rena2damas/remote-opencv-streaming-live-video/blob/master/LICENSE)",
+  "main": "index.js",
+  "dependencies": {
+    "socketio": "^1.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AthanatiusC/OPENCV-PROJECT.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AthanatiusC/OPENCV-PROJECT/issues"
+  },
+  "homepage": "https://github.com/AthanatiusC/OPENCV-PROJECT#readme"
+}
